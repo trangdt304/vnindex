@@ -1,0 +1,23 @@
+services:
+  stock:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vn-stock-lab
+    restart: unless-stopped
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:3000:3000"
+    environment:
+      PORT: 3000
+      DEFAULT_SYMBOL: "${DEFAULT_SYMBOL:-GEX}"
+      WATCHLIST: "${WATCHLIST:-GEX,FPT,HPG,VNM,VND}"
+      VNDIRECT_API_BASE: "${VNDIRECT_API_BASE:-https://api-finfo.vndirect.com.vn/v4}"
+      WATCHLIST_IP_SALT: "${WATCHLIST_IP_SALT:?Hãy đặt WATCHLIST_IP_SALT trong file .env}"
+      SQLITE_PATH: /app/data/stock.db
+      CRON_SECRET: "${CRON_SECRET:-}"
+    volumes:
+      - stock-data:/app/data
+
+volumes:
+  stock-data:
+    name: vn-stock-lab-data

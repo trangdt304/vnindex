@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: vn-stock-lab
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: SQLITE_PATH
+        value: /opt/render/project/src/data/stock.db
+      - key: WATCHLIST_IP_SALT
+        generateValue: true
+      - key: CRON_SECRET
+        sync: false
+      - key: WATCHLIST
+        value: GEX,FPT,HPG,VNM,VND
+      - key: VNDIRECT_API_BASE
+        value: https://api-finfo.vndirect.com.vn/v4

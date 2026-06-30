@@ -1,0 +1,22 @@
+{
+  "name": "vn-stock-lab",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dashboard dữ liệu giá cuối ngày và phân tích kỹ thuật cổ phiếu Việt Nam",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node server/index.js",
+    "test": "node tests/indicators.test.js && node tests/store.test.js",
+    "db:migrate": "node scripts/migrate-json-to-db.js"
+  },
+  "engines": {
+    "node": ">=14"
+  },
+  "dependencies": {
+    "dotenv": "16.4.7",
+    "express": "4.22.2",
+    "lightweight-charts": "4.2.3",
+    "sqlite3": "^5.1.7"
+  }
+}
