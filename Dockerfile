@@ -15,7 +15,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+RUN npm ci --build-from-source=sqlite3 --omit=dev
 
 COPY --chown=node:node server ./server
 COPY --from=build --chown=node:node /app/dist ./dist
