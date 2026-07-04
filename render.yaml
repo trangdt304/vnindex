@@ -19,3 +19,9 @@ services:
         value: GEX,FPT,HPG,VNM,VND
       - key: VNDIRECT_API_BASE
         value: https://api-finfo.vndirect.com.vn/v4
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.5-flash
+      - key: AI_RATE_LIMIT
+        value: 5

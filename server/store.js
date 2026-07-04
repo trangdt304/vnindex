@@ -66,6 +66,17 @@ async function init() {
       updated_at TEXT NOT NULL
     )
   `);
+  await run(`
+    CREATE TABLE IF NOT EXISTS ai_analysis_cache (
+      symbol TEXT NOT NULL,
+      price_date TEXT NOT NULL,
+      model TEXT NOT NULL,
+      prompt_version TEXT NOT NULL,
+      result TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (symbol, price_date, model, prompt_version)
+    )
+  `);
 }
 
 async function read(symbol) {
@@ -124,6 +135,40 @@ async function writeWatchlist(clientKey, symbols) {
   return symbols;
 }
 
+async function readAiAnalysis(symbol, priceDate, model, promptVersion) {
+  const row = await get(`
+    SELECT result, created_at
+    FROM ai_analysis_cache
+    WHERE symbol = ? AND price_date = ? AND model = ? AND prompt_version = ?
+  `, [symbol.toUpperCase(), priceDate, model, promptVersion]);
+  if (!row) return null;
+  return {
+    result: JSON.parse(row.result),
+    generatedAt: row.created_at,
+  };
+}
+
+async function writeAiAnalysis(symbol, priceDate, model, promptVersion, result) {
+  const generatedAt = new Date().toISOString();
+  await run(`
+    INSERT INTO ai_analysis_cache (
+      symbol, price_date, model, prompt_version, result, created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT(symbol, price_date, model, prompt_version) DO UPDATE SET
+      result = excluded.result,
+      created_at = excluded.created_at
+  `, [
+    symbol.toUpperCase(),
+    priceDate,
+    model,
+    promptVersion,
+    JSON.stringify(result),
+    generatedAt,
+  ]);
+  return { result, generatedAt };
+}
+
 async function close() {
   if (!database) return;
   const connection = database;
@@ -142,6 +187,8 @@ module.exports = {
   write,
   readWatchlist,
   writeWatchlist,
+  readAiAnalysis,
+  writeAiAnalysis,
   close,
   backend: 'sqlite',
   databaseFile,

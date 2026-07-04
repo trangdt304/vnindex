@@ -9,6 +9,7 @@ const { fetchPrices } = require('./vndirect');
 const store = require('./store');
 const { enrich } = require('./indicators');
 const { analyze } = require('./analysis');
+const gemini = require('./gemini');
 
 const app = express();
 const port = Number(process.env.PORT || 5173);
@@ -16,6 +17,10 @@ const defaultSymbol = process.env.DEFAULT_SYMBOL || 'GEX';
 const defaultWatchlist = (process.env.WATCHLIST || 'GEX,FPT,HPG,VNM,VND')
   .split(',').map((symbol) => symbol.trim().toUpperCase()).filter(Boolean);
 const syncing = new Map();
+const aiJobs = new Map();
+const aiRequests = new Map();
+const aiRateLimit = Math.max(1, Number(process.env.AI_RATE_LIMIT || 5));
+const aiRateWindowMs = 10 * 60 * 1000;
 
 // Chỉ tin X-Forwarded-For từ reverse proxy chạy trên cùng VM.
 app.set('trust proxy', 'loopback');
@@ -47,6 +52,20 @@ async function saveClientWatchlist(request, symbols) {
   const normalized = normalizeWatchlist(symbols);
   await store.writeWatchlist(key, normalized);
   return normalized;
+}
+
+function consumeAiQuota(request) {
+  const key = watchlistKey(request);
+  const now = Date.now();
+  const active = (aiRequests.get(key) || []).filter(
+    (timestamp) => now - timestamp < aiRateWindowMs,
+  );
+  if (active.length >= aiRateLimit) {
+    return Math.ceil((aiRateWindowMs - (now - active[0])) / 1000);
+  }
+  active.push(now);
+  aiRequests.set(key, active);
+  return 0;
 }
 
 async function sync(symbol) {
@@ -91,6 +110,10 @@ app.get('/api/health', (_request, response) => {
     source: 'VNDirect',
     storage: store.backend,
     scheduler: 'disabled',
+    ai: {
+      enabled: gemini.configured(),
+      model: gemini.modelName(),
+    },
   });
 });
 
@@ -182,9 +205,89 @@ app.get('/api/stocks/:symbol', async (request, response) => {
       ...payload,
       prices: rows,
       analysis: analyze(rows),
+      aiAvailable: gemini.configured(),
     });
   } catch (error) {
     response.status(502).json({ error: error.message });
+  }
+});
+
+app.post('/api/stocks/:symbol/ai-analysis', async (request, response) => {
+  const symbol = request.params.symbol.toUpperCase();
+  if (!validSymbol(symbol)) {
+    response.status(400).json({ error: 'Mã cổ phiếu không hợp lệ.' });
+    return;
+  }
+  if (!gemini.configured()) {
+    response.status(503).json({ error: 'Tính năng AI chưa được cấu hình.' });
+    return;
+  }
+
+  try {
+    const payload = await getData(symbol);
+    const rows = enrich(payload.prices);
+    const latest = rows[rows.length - 1];
+    if (!latest) {
+      response.status(404).json({ error: `Không có dữ liệu cho mã ${symbol}.` });
+      return;
+    }
+
+    const model = gemini.modelName();
+    const priceDate = latest.date;
+    const cached = await store.readAiAnalysis(
+      symbol,
+      priceDate,
+      model,
+      gemini.PROMPT_VERSION,
+    );
+    if (cached && request.query.refresh !== '1') {
+      response.json({
+        ...cached.result,
+        symbol,
+        priceDate,
+        model,
+        generatedAt: cached.generatedAt,
+        cached: true,
+      });
+      return;
+    }
+
+    const jobKey = `${symbol}:${priceDate}:${model}:${gemini.PROMPT_VERSION}`;
+    let job = aiJobs.get(jobKey);
+    if (!job) {
+      const retryAfter = consumeAiQuota(request);
+      if (retryAfter) {
+        response.set('Retry-After', String(retryAfter));
+        response.status(429).json({
+          error: 'Bạn đã tạo nhiều phân tích AI. Vui lòng thử lại sau ít phút.',
+        });
+        return;
+      }
+      job = (async () => {
+        const result = await gemini.analyzeStock(symbol, rows, analyze(rows));
+        return store.writeAiAnalysis(
+          symbol,
+          priceDate,
+          model,
+          gemini.PROMPT_VERSION,
+          result,
+        );
+      })().finally(() => aiJobs.delete(jobKey));
+      aiJobs.set(jobKey, job);
+    }
+    const saved = await job;
+    response.json({
+      ...saved.result,
+      symbol,
+      priceDate,
+      model,
+      generatedAt: saved.generatedAt,
+      cached: false,
+    });
+  } catch (error) {
+    response.status(error.statusCode || 502).json({
+      error: error.message || 'Không thể tạo phân tích AI.',
+    });
   }
 });
 

@@ -258,6 +258,104 @@ function updateAnalysis(analysis) {
   `).join('');
 }
 
+function addAiText(parent, tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  element.textContent = text;
+  parent.appendChild(element);
+  return element;
+}
+
+function resetAiAnalysis(available = true) {
+  const button = document.getElementById('ai-analysis-button');
+  const content = document.getElementById('ai-analysis-content');
+  button.disabled = !available;
+  button.textContent = available ? 'Phân tích bằng AI' : 'AI chưa cấu hình';
+  content.className = 'ai-analysis-content';
+  content.replaceChildren();
+  addAiText(
+    content,
+    'p',
+    '',
+    available
+      ? 'Nhấn nút để Gemini tổng hợp các tín hiệu kỹ thuật của mã hiện tại.'
+      : 'Backend chưa có GEMINI_API_KEY.',
+  );
+}
+
+function addAiList(parent, title, items, tone) {
+  const group = document.createElement('div');
+  group.className = `ai-factor-group ${tone}`;
+  addAiText(group, 'strong', '', title);
+  const list = document.createElement('ul');
+  items.forEach((item) => addAiText(list, 'li', '', item));
+  group.appendChild(list);
+  parent.appendChild(group);
+}
+
+function renderAiAnalysis(payload) {
+  const content = document.getElementById('ai-analysis-content');
+  content.className = `ai-analysis-content ${payload.tone}`;
+  content.replaceChildren();
+
+  addAiText(content, 'p', 'ai-summary', payload.summary);
+  addAiText(content, 'p', 'ai-outlook', payload.outlook);
+  const factors = document.createElement('div');
+  factors.className = 'ai-factors';
+  addAiList(factors, 'Điểm hỗ trợ', payload.positiveFactors, 'positive');
+  addAiList(factors, 'Rủi ro', payload.riskFactors, 'negative');
+  content.appendChild(factors);
+
+  const scenarios = document.createElement('div');
+  scenarios.className = 'ai-scenarios';
+  addAiText(scenarios, 'strong', 'positive', 'Kịch bản tích cực');
+  addAiText(scenarios, 'p', '', payload.bullishScenario);
+  addAiText(scenarios, 'strong', 'negative', 'Kịch bản tiêu cực');
+  addAiText(scenarios, 'p', '', payload.bearishScenario);
+  content.appendChild(scenarios);
+
+  const generated = new Intl.DateTimeFormat('vi-VN', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+  }).format(new Date(payload.generatedAt));
+  addAiText(
+    content,
+    'small',
+    'ai-meta',
+    `${payload.model} · ${payload.cached ? 'Đã lưu cache' : 'Vừa tạo'} · ${generated}`,
+  );
+  addAiText(content, 'small', 'ai-disclaimer', payload.disclaimer);
+}
+
+async function loadAiAnalysis() {
+  const symbol = currentSymbol;
+  const button = document.getElementById('ai-analysis-button');
+  const content = document.getElementById('ai-analysis-content');
+  button.disabled = true;
+  button.textContent = 'Gemini đang phân tích…';
+  content.className = 'ai-analysis-content loading-ai';
+  content.replaceChildren();
+  addAiText(content, 'p', '', `Đang tổng hợp tín hiệu kỹ thuật cho ${symbol}…`);
+
+  try {
+    const response = await fetch(`/api/stocks/${symbol}/ai-analysis`, { method: 'POST' });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || 'Không thể tạo phân tích AI');
+    if (symbol === currentSymbol) renderAiAnalysis(payload);
+  } catch (error) {
+    if (symbol === currentSymbol) {
+      content.className = 'ai-analysis-content ai-error';
+      content.replaceChildren();
+      addAiText(content, 'p', '', error.message);
+    }
+  } finally {
+    if (symbol === currentSymbol) {
+      button.disabled = false;
+      button.textContent = 'Phân tích lại';
+    }
+  }
+}
+
 function showMessage(text, isError = false) {
   const message = document.getElementById('message');
   message.hidden = !text;
@@ -337,6 +435,7 @@ async function load(symbol, refresh = false) {
     if (!response.ok) throw new Error(payload.error || 'Không thể tải dữ liệu');
     updateSummary(payload);
     updateAnalysis(payload.analysis);
+    resetAiAnalysis(payload.aiAvailable);
     drawCharts(payload.prices);
     renderWatchlist();
     if (payload.warning) showMessage(payload.warning);
@@ -355,6 +454,7 @@ document.getElementById('search-form').addEventListener('submit', (event) => {
 });
 document.getElementById('refresh-button').addEventListener('click', () => load(currentSymbol, true));
 document.getElementById('add-watchlist-button').addEventListener('click', addToWatchlist);
+document.getElementById('ai-analysis-button').addEventListener('click', loadAiAnalysis);
 document.getElementById('watchlist').addEventListener('click', (event) => {
   const symbol = event.target.dataset.symbol;
   const remove = event.target.dataset.remove;

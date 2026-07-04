@@ -5,6 +5,7 @@ const {
   sma, ema, rsi, bollinger, accumulationDistribution, mcdx, enrich,
 } = require('../server/indicators');
 const { analyze } = require('../server/analysis');
+const { buildStockContext, normalizeAiAnalysis } = require('../server/gemini');
 const { watchlistKey, normalizeWatchlist } = require('../server');
 
 function test(name, callback) {
@@ -109,4 +110,35 @@ test('Phân tích sinh điểm và các tín hiệu từ OHLCV', () => {
   assert.strictEqual(result.resistanceZones.length, 3);
   assert(result.supportZones[0].center < rows[rows.length - 1].close);
   assert(result.resistanceZones[0].center > rows[rows.length - 1].close);
+});
+
+test('Ngữ cảnh Gemini chỉ gửi lịch sử cô đọng và kết quả kỹ thuật', () => {
+  const rows = Array.from({ length: 80 }, (_, index) => ({
+    date: `2026-06-${String(index + 1).padStart(2, '0')}`,
+    open: 10,
+    high: 11,
+    low: 9,
+    close: 10 + index / 10,
+    volume: 1000 + index,
+    indicators: { rsi14: 50, ma20: 12 },
+  }));
+  const context = buildStockContext('GEX', rows, { verdict: 'Trung tính' });
+  assert.strictEqual(context.symbol, 'GEX');
+  assert.strictEqual(context.recentHistory.length, 60);
+  assert.deepStrictEqual(context.deterministicAnalysis, { verdict: 'Trung tính' });
+});
+
+test('Chuẩn hóa phản hồi Gemini về cấu trúc an toàn cho giao diện', () => {
+  const result = normalizeAiAnalysis({
+    summary: '  Tóm tắt  ',
+    tone: 'positive',
+    outlook: 'Theo dõi xu hướng.',
+    positiveFactors: ['Giá trên MA20'],
+    riskFactors: ['Khối lượng thấp'],
+    bullishScenario: 'Vượt kháng cự.',
+    bearishScenario: 'Thủng hỗ trợ.',
+  });
+  assert.strictEqual(result.summary, 'Tóm tắt');
+  assert.strictEqual(result.tone, 'positive');
+  assert(result.disclaimer.includes('không phải khuyến nghị'));
 });

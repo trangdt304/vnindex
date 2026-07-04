@@ -31,8 +31,13 @@ Sao chép `.env.example` thành `.env` nếu dùng trình quản lý biến môi
 | `WATCHLIST` | `GEX,FPT,HPG,VNM,VND` | Watchlist mặc định |
 | `SQLITE_PATH` | `./data/stock.db` | Đường dẫn file SQLite |
 | `VNDIRECT_API_BASE` | `https://api-finfo.vndirect.com.vn/v4` | API nguồn |
+| `GEMINI_API_KEY` | — | API key Gemini, chỉ lưu ở backend |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Model dùng để diễn giải tín hiệu kỹ thuật |
+| `AI_RATE_LIMIT` | `5` | Số lần tạo phân tích mới/IP trong 10 phút |
 
 Endpoint chính: `GET /api/stocks/GEX`; thêm `?refresh=1` để bỏ qua cache.
+Nhấn **Phân tích bằng AI** hoặc gọi `POST /api/stocks/GEX/ai-analysis` để Gemini
+tổng hợp dữ liệu kỹ thuật. Kết quả được cache theo mã, ngày giá, model và phiên bản prompt.
 
 ## Public trên Oracle Cloud
 

@@ -27,8 +27,19 @@ async function test() {
   await store.writeWatchlist(clientKey, ['GEX', 'FPT']);
   assert.deepStrictEqual(await store.readWatchlist(clientKey), ['GEX', 'FPT']);
 
+  const aiResult = { summary: 'Xu hướng kỹ thuật trung tính.' };
+  await store.writeAiAnalysis('GEX', '2026-07-01', 'gemini-test', 'prompt-v1', aiResult);
+  const cachedAi = await store.readAiAnalysis(
+    'GEX',
+    '2026-07-01',
+    'gemini-test',
+    'prompt-v1',
+  );
+  assert.deepStrictEqual(cachedAi.result, aiResult);
+  assert(cachedAi.generatedAt);
+
   await store.close();
-  console.log('✓ SQLite lưu và đọc cache giá cùng watchlist');
+  console.log('✓ SQLite lưu và đọc cache giá, watchlist cùng phân tích AI');
 }
 
 test().catch(async (error) => {
