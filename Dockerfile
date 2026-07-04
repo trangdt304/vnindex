@@ -1,3 +1,14 @@
+FROM node:22-bookworm-slim AS build
+
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY client ./client
+COPY vite.config.mjs ./
+RUN npm run build
+
 FROM node:22-bookworm-slim
 
 WORKDIR /app
@@ -7,7 +18,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY --chown=node:node server ./server
-COPY --chown=node:node public ./public
+COPY --from=build --chown=node:node /app/dist ./dist
 RUN mkdir -p /app/data && chown -R node:node /app
 
 USER node

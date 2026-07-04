@@ -10,9 +10,11 @@ const store = require('./store');
 const { enrich } = require('./indicators');
 const { analyze } = require('./analysis');
 const gemini = require('./gemini');
+const { fetchCompanyNews } = require('./news');
 
 const app = express();
 const port = Number(process.env.PORT || 5173);
+const frontendPath = path.join(__dirname, '..', 'dist');
 const defaultSymbol = process.env.DEFAULT_SYMBOL || 'GEX';
 const defaultWatchlist = (process.env.WATCHLIST || 'GEX,FPT,HPG,VNM,VND')
   .split(',').map((symbol) => symbol.trim().toUpperCase()).filter(Boolean);
@@ -101,8 +103,7 @@ async function getData(symbol, force = false) {
 }
 
 app.use(express.json());
-app.use('/vendor', express.static(path.join(__dirname, '..', 'node_modules', 'lightweight-charts', 'dist')));
-app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use(express.static(frontendPath));
 
 app.get('/api/health', (_request, response) => {
   response.json({
@@ -212,6 +213,24 @@ app.get('/api/stocks/:symbol', async (request, response) => {
   }
 });
 
+app.get('/api/stocks/:symbol/news', async (request, response) => {
+  const symbol = request.params.symbol.toUpperCase();
+  if (!validSymbol(symbol)) {
+    response.status(400).json({ error: 'Mã cổ phiếu không hợp lệ.' });
+    return;
+  }
+  try {
+    response.json(await fetchCompanyNews(symbol, {
+      limit: 5,
+      force: request.query.refresh === '1',
+    }));
+  } catch (error) {
+    response.status(502).json({
+      error: error.message || `Không thể tải tin tức cho mã ${symbol}.`,
+    });
+  }
+});
+
 app.post('/api/stocks/:symbol/ai-analysis', async (request, response) => {
   const symbol = request.params.symbol.toUpperCase();
   if (!validSymbol(symbol)) {
@@ -306,7 +325,7 @@ app.post('/api/sync/:symbol', async (request, response) => {
 });
 
 app.get('*', (_request, response) => {
-  response.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  response.sendFile(path.join(frontendPath, 'index.html'));
 });
 
 async function start() {

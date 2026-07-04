@@ -6,17 +6,29 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node server/index.js",
-    "test": "node tests/indicators.test.js && node tests/store.test.js",
+    "dev": "concurrently -k -n api,web -c blue,green \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "cross-env PORT=3000 node server/index.js",
+    "dev:web": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node tests/indicators.test.js && node tests/news.test.js && node tests/store.test.js",
     "db:migrate": "node scripts/migrate-json-to-db.js"
   },
   "engines": {
-    "node": ">=14"
+    "node": "^20.19.0 || >=22.12.0"
   },
   "dependencies": {
     "dotenv": "16.4.7",
     "express": "4.22.2",
     "lightweight-charts": "4.2.3",
-    "sqlite3": "^5.1.7"
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "sqlite3": "^6.0.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.3",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "vite": "^8.1.3"
   }
 }

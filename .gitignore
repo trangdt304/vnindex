@@ -1,4 +1,6 @@
 node_modules/
+dist/
+.tools/
 data/*.json
 data/*.db
 data/*.db-shm
