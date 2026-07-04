@@ -3,7 +3,7 @@ services:
     name: vn-stock-lab
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --build-from-source=sqlite3 && npm run build
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
