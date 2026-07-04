@@ -9,16 +9,27 @@ COPY client ./client
 COPY vite.config.mjs ./
 RUN npm run build
 
+
 FROM node:22-bookworm-slim
 
 WORKDIR /app
 ENV NODE_ENV=production
 
 COPY package.json package-lock.json ./
-RUN npm ci --build-from-source=sqlite3 --omit=dev
+
+# Cài tool để build native module sqlite3
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+  && npm ci --omit=dev --build-from-source=sqlite3 \
+  && npm cache clean --force \
+  && apt-get purge -y --auto-remove python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 
 COPY --chown=node:node server ./server
 COPY --from=build --chown=node:node /app/dist ./dist
+
 RUN mkdir -p /app/data && chown -R node:node /app
 
 USER node
